@@ -64,14 +64,14 @@ Write-Host "• 显存策略: llama.cpp --fit 先自动适配，若离红线仍�
 Write-Host "• KV 量化: 见 llm_models.json (默认 Key=q8_0 / Value=q4_0)" -ForegroundColor Cyan
 Write-Host "• 监听地址: http://127.0.0.1:$PORT (仅本机；网关通过 app\storage\llama_api_key.txt 共享密钥访问)" -ForegroundColor Cyan
 Write-Host "正在规划上下文并装载模型，可能会自动重启一次以加长上下文..." -ForegroundColor Yellow
-Write-Host "提示: 启动成功后请访问 Turbovec RAG 智能系统 http://localhost:18088" -ForegroundColor Green
+Write-Host "提示: 启动成功后请访问 Turbovec RAG 智能系统 http://127.0.0.1:18088" -ForegroundColor Green
 Write-Host "(本窗口保持运行，关闭此窗口即可停止模型服务)" -ForegroundColor DarkGray
 Write-Host ""
 
 # 3. 后台延迟唤起浏览器
 Start-Job -ScriptBlock {
     Start-Sleep -Seconds 8
-    Start-Process "http://localhost:18088"
+    Start-Process "http://127.0.0.1:18088"
 } | Out-Null
 
 # 4. 运行启动器 (前台常驻，日志直接输出到本窗口)

@@ -23,7 +23,7 @@ if ($portCheck) {
     Write-Host ""
 }
 
-Write-Host "正在启动 Turbovec RAG 统一服务 (http://localhost:18088)..." -ForegroundColor Green
+Write-Host "正在启动 Turbovec RAG 统一服务 (http://127.0.0.1:18088)..." -ForegroundColor Green
 Write-Host "• 唯一服务入口: Web 界面与 OpenAI 兼容 API (/v1/chat/completions)" -ForegroundColor Cyan
 Write-Host "• 向量检索引擎: Turbovec 4-bit 量化加速" -ForegroundColor Cyan
 Write-Host "• 智能决策路由: Laya / BGE 双语语义路由" -ForegroundColor Cyan

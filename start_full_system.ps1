@@ -29,7 +29,7 @@ Start-Process "cmd.exe" -ArgumentList "/c `"$ragBat`""
 Write-Host ""
 Write-Host "✔ 两个服务均已在各自专用窗口中成功启动！" -ForegroundColor Green
 Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "• 唯一服务入口: http://localhost:18088 [Turbovec 4-bit · Web UI · OpenAI API · 知识库]" -ForegroundColor Cyan
+Write-Host "• 唯一服务入口: http://127.0.0.1:18088 [Turbovec 4-bit · Web UI · OpenAI API · 知识库]" -ForegroundColor Cyan
 Write-Host "• 显存策略: 只要不到 VRAM 极限 -0.3GB 绝不截断上下文" -ForegroundColor Cyan
 Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "提示: 保持对应子窗口运行即可；关闭对应窗口即可停止该项服务。" -ForegroundColor Gray

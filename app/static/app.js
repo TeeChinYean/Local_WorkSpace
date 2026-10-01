@@ -76,6 +76,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnToggleSidebar = $('btn-toggle-sidebar');
   const btnCollapseSidebar = $('btn-collapse-sidebar');
   const btnNewChat = $('btn-new-chat');
+  
+  // ==== Chat List Logic ====
+  const chatList = $('chat-list');
+  const chatListEmpty = $('chat-list-empty');
+
+  function renderChatList(chats, currentId) {
+    if (!chatList) return;
+    chatList.replaceChildren();
+    if (!chats || Object.keys(chats).length === 0) {
+      chatListEmpty.hidden = false;
+      return;
+    }
+    chatListEmpty.hidden = true;
+    for (const chat of chats) {
+      const btn = document.createElement('button');
+      btn.className = 'chat-btn';
+      if (chat.id === currentId) btn.classList.add('active');
+      
+      const span = document.createElement('span');
+      span.className = 'chat-btn-title';
+      span.textContent = chat.title || '新对话';
+      btn.appendChild(span);
+      
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        if (chat.id === currentId) return;
+        try {
+          const res = await fetch('/api/chats/switch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chat_id: chat.id})
+          });
+          if (res.ok) { location.reload(); }
+        } catch(e) {}
+      };
+      
+      const delBtn = document.createElement('button');
+      delBtn.className = 'chat-btn-del';
+      delBtn.title = '删除';
+      delBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      delBtn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!await confirmDialog({title: '删除历史对话？', body: '此操作不可恢复。', okText: '删除'})) return;
+        try {
+          const res = await fetch('/api/chats/' + chat.id, {method: 'DELETE'});
+          if (res.ok) { location.reload(); }
+        } catch(e) {}
+      };
+      
+      btn.appendChild(delBtn);
+      chatList.appendChild(btn);
+    }
+  }
+  // ==== End Chat List ====
+
   const fileList = $('file-list');
   const fileListEmpty = $('file-list-empty');
   const memoryCountEl = $('memory-count');
@@ -2858,16 +2914,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function newChat() {
     closeMobileSidebar();
-    if (hasConversation()) {
-      const ok = await confirmDialog({
-        title: '开始新对话？',
-        body: '当前对话和工作区文件会被清空，长期记忆不受影响。',
-        okText: '开始新对话'
-      });
-      if (!ok) return;
-    }
     try {
-      const res = await fetch('/api/clear', { method: 'POST' });
+      const res = await fetch('/api/chats/new', { method: 'POST' });
+      if (res.ok) { location.reload(); }
+      return;
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.status === 'ok') {
         resetView();
@@ -3529,6 +3579,15 @@ document.addEventListener('DOMContentLoaded', () => {
     statusInFlight = true;
     try {
       const res = await fetch('/api/status');
+
+    try {
+      const chatRes = await fetch('/api/chats');
+      if (chatRes.ok) {
+        const chatData = await chatRes.json();
+        renderChatList(chatData.chats, chatData.current_chat_id);
+      }
+    } catch(e) {}
+
       if (!res.ok) { setConnection('down'); return; }
       const data = await res.json();
       lastStatus = data;

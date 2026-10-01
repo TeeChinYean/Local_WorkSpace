@@ -1,8 +1,8 @@
 # Local_WorkSpace · Turbovec RAG 本地智能工作区与多模型对话系统
 
-> **100% 纯 Windows 原生运行 · 彻底摆脱 Docker 虚拟化 · 4GB 显卡极限压榨 · 毫秒级双脑快慢路由 · 全量原生 Tools & Reasoning 支持**
+> **Windows 原生运行 · 摆脱 Docker 虚拟化**
 
-基于 **Qwen 3.5 / Phi-4 / Qwen 2.5 原生大模型**、**Turbovec 4-bit 标量量化向量空间**、**Laya 极速意图路由器** 的全功能本地知识库、代码工作区与长期记忆系统。
+基于 **Qwen 3.5 / Phi-4 / Qwen 2.5 原生大模型(可更换为更强大的模型**、**Turbovec 4-bit 标量量化向量空间**、**Laya 极速意图路由器** 的全功能本地知识库、代码工作区与长期记忆系统。
 
 > [!IMPORTANT]
 > **📌 会话机制特别说明 (Chat Session Note)**  

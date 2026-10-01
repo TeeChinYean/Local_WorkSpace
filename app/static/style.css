@@ -210,6 +210,26 @@ input.switch:checked::before { transform: translateX(16px); }
 .sb-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .sb-heading { margin: 0 8px 6px; font-size: 12.5px; font-weight: 600; color: var(--text-3); }
 .sb-empty { margin: 2px 8px; font-size: 13px; line-height: 1.6; color: var(--text-3); }
+
+/* ---------- 历史对话列表 ---------- */
+.chat-btn-list { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+.chat-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%;
+  padding: 6px 10px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--text-2); font-size: 13.5px; text-align: left;
+  transition: background var(--ease), color var(--ease);
+}
+.chat-btn:hover { background: var(--hover); color: var(--text); }
+.chat-btn.active { background: var(--surface-2); color: var(--text); font-weight: 500; }
+.chat-btn-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-btn-del {
+  flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 0; border-radius: 4px; background: transparent; color: var(--text-3);
+  opacity: 0; transition: opacity var(--ease), background var(--ease), color var(--ease);
+}
+.chat-btn:hover .chat-btn-del { opacity: 1; }
+.chat-btn-del:hover { background: var(--danger-soft); color: var(--danger); }
+
 .file-list { list-style: none; margin: 0; padding: 0; }
 .file-entry {
   display: flex; align-items: center; gap: 8px; width: 100%;

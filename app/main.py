@@ -267,9 +267,11 @@ INDEX_FILE = os.path.join(STORAGE_DIR, "memory_index.tv")
 HISTORY_FILE = os.path.join(STORAGE_DIR, "memory_history.json")
 ACTIVE_FILES_FILE = os.path.join(STORAGE_DIR, "active_files.json")
 FILE_STORAGE_DIR = os.path.join(STORAGE_DIR, "files")
+CHAT_STORAGE_DIR = os.path.join(STORAGE_DIR, "chats")
 MCP_SETTINGS_FILE = os.path.join(STORAGE_DIR, "mcp_settings.json")
 EMBEDDING_BACKEND_FILE = os.path.join(STORAGE_DIR, "embedding_backend.txt")  # 记录构建索引所用的 embedding 后端
 os.makedirs(FILE_STORAGE_DIR, exist_ok=True)
+os.makedirs(CHAT_STORAGE_DIR, exist_ok=True)
 
 # 全文直通字符上限 (20万字符 / ~4000行)，在 Qwen 2.5 32k 上下文窗口中 100% 满血装载，绝不丢弃任何一行代码
 FULL_CONTEXT_CHAR_LIMIT = 200000
@@ -359,6 +361,7 @@ class AppState:
     memory_history: List[str] = []
     session_turns: List[Dict[str, str]] = []
     compact_summary: str = ""           # 滑动窗口压缩后的历史摘要（Compact Window Memory）
+    current_chat_id: str = "default"
     active_files: Dict[str, Dict] = {}  # 活跃工作区文件: filename -> {text, lines, chars, outline, mode, in_rag, bytes}
     buffer_bytes: int = 0               # 当前动态内存缓冲区大小 (bytes)
     model_path: str = ""
@@ -1190,8 +1193,18 @@ async def lifespan(app: FastAPI):
     initial_model = getattr(state, "current_model", LLM_MODEL) or LLM_MODEL
     try:
         await asyncio.to_thread(unload_other_runner_models, initial_model)
-    except Exception:
-        pass
+        
+        # 确保启动时自动启动大模型，防止出现“Server unavailable”
+        base = get_active_llm_base()
+        if is_native_llama_running() or ("18089" in base) or not base:
+            if not is_native_llama_running():
+                print(f"🚀 [Auto-Start] 正在自动启动原生大模型引擎: {initial_model}", flush=True)
+                await asyncio.to_thread(restart_native_llama_server, initial_model)
+        else:
+            print(f"🚀 [Auto-Start] 正在预载大模型 (Ollama/Docker): {initial_model}", flush=True)
+            await asyncio.to_thread(preload_runner_model, initial_model)
+    except Exception as e:
+        print(f"⚠ 自动启动大模型失败: {e}", flush=True)
 
     total_startup_sec = time.time() - t_total_start
     print(f"\n🚀 [并行加速] 所有组件加载完毕！总耗时: {total_startup_sec:.2f}s (原串行预计耗时大幅缩减)")
@@ -1522,6 +1535,7 @@ def clear_session():
     state.active_files.clear()
     state.buffer_bytes = 0
     save_storage(state.index, state.memory_history, state.active_files)  # 持久化清空结果，重启后不再复活
+    save_chat_session()
     return {"status": "ok", "message": "短期会话记忆与工作区活跃缓存已重置"}
 
 @app.post("/api/clear_rag")
@@ -3170,6 +3184,99 @@ def retrieve_ranked_memories(user_input: str, k_val: int) -> List[str]:
     scored.sort(key=lambda x: x[0], reverse=True)
     return [mem for _, mem in scored[:k_val]]
 
+import uuid
+
+def save_chat_session():
+    if not state.current_chat_id:
+        return
+    os.makedirs(CHAT_STORAGE_DIR, exist_ok=True)
+    p = os.path.join(CHAT_STORAGE_DIR, f"{state.current_chat_id}.json")
+    title = "新对话"
+    if state.session_turns:
+        first_user = state.session_turns[0].get("user", "")
+        title = first_user[:20] + ("..." if len(first_user) > 20 else "")
+    data = {
+        "id": state.current_chat_id,
+        "title": title,
+        "updated_at": time.time(),
+        "session_turns": state.session_turns,
+        "compact_summary": state.compact_summary
+    }
+    _atomic_write_json(p, data)
+
+def switch_chat_session(chat_id: str):
+    if state.current_chat_id:
+        save_chat_session()
+    state.current_chat_id = chat_id
+    p = os.path.join(CHAT_STORAGE_DIR, f"{chat_id}.json")
+    if os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                state.session_turns = data.get("session_turns", [])
+                state.compact_summary = data.get("compact_summary", "")
+        except:
+            state.session_turns = []
+            state.compact_summary = ""
+    else:
+        state.session_turns = []
+        state.compact_summary = ""
+
+def delete_chat_session(chat_id: str):
+    p = os.path.join(CHAT_STORAGE_DIR, f"{chat_id}.json")
+    if os.path.exists(p):
+        os.remove(p)
+    if state.current_chat_id == chat_id:
+        state.session_turns = []
+        state.compact_summary = ""
+        state.current_chat_id = str(uuid.uuid4())
+
+@app.get("/api/chats")
+def list_chats():
+    if not os.path.exists(CHAT_STORAGE_DIR):
+        return {"chats": [], "current_chat_id": state.current_chat_id}
+    chats = []
+    for fn in os.listdir(CHAT_STORAGE_DIR):
+        if fn.endswith(".json"):
+            p = os.path.join(CHAT_STORAGE_DIR, fn)
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    chats.append({
+                        "id": data.get("id", fn[:-5]),
+                        "title": data.get("title", "未命名"),
+                        "updated_at": data.get("updated_at", 0)
+                    })
+            except:
+                pass
+    chats.sort(key=lambda x: x["updated_at"], reverse=True)
+    if not state.current_chat_id or (state.current_chat_id == "default" and not state.session_turns):
+        if chats:
+            state.current_chat_id = chats[0]["id"]
+            switch_chat_session(state.current_chat_id)
+        else:
+            state.current_chat_id = str(uuid.uuid4())
+    return {"chats": chats, "current_chat_id": state.current_chat_id}
+
+class SwitchChatRequest(BaseModel):
+    chat_id: str
+
+@app.post("/api/chats/new")
+def new_chat():
+    new_id = str(uuid.uuid4())
+    switch_chat_session(new_id)
+    return {"chat_id": new_id}
+
+@app.post("/api/chats/switch")
+def do_switch_chat(req: SwitchChatRequest):
+    switch_chat_session(req.chat_id)
+    return {"status": "ok", "chat_id": req.chat_id}
+
+@app.delete("/api/chats/{chat_id}")
+def do_delete_chat(chat_id: str):
+    delete_chat_session(chat_id)
+    return {"status": "ok", "current_chat_id": state.current_chat_id}
+
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
     user_input = req.message.strip()
@@ -3523,6 +3630,7 @@ async def chat_endpoint(req: ChatRequest):
                 if answer_txt.strip():
                     state.session_turns.append(make_turn(user_input, answer_txt, r_summary))
                     apply_compact_window()
+                    save_chat_session()
                     threading.Thread(target=save_turn_to_memory, args=(user_input, answer_txt, r_summary), name="tv-save-turn", daemon=True).start()
 
             body = _agent_event_body if agent_tools else _event_body
@@ -3773,6 +3881,7 @@ async def chat_endpoint(req: ChatRequest):
     stored_answer, r_summary = prepare_turn(answer or "")
     if stored_answer.strip():
         state.session_turns.append(make_turn(user_input, stored_answer, r_summary))
+        save_chat_session()
         asyncio.create_task(asyncio.to_thread(save_turn_to_memory, user_input, stored_answer, r_summary))
 
     return {
