@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>本地智能助手</title>
+  <!-- 首帧前确定主题，避免闪烁 (离线：不依赖任何外部字体 / CDN) -->
+  <script>
+    (function () {
+      var pref = 'system';
+      try { pref = localStorage.getItem('theme') || 'system'; } catch (e) { /* 存储不可用 */ }
+      var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme-pref', pref);
+      try { if (localStorage.getItem('sidebarCollapsed') === 'true') document.documentElement.classList.add('sidebar-collapsed'); } catch (e) { /* ignore */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/style.css?v=7">
+</head>
+<body>
+  <div class="app">
+    <!-- ============ 左侧边栏 ============ -->
+    <aside class="sidebar" id="app-sidebar" aria-label="侧边栏">
+      <div class="sb-top">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>
+          </span>
+          <span class="brand-text">
+            <span class="brand-name">本地智能助手</span>
+            <span class="brand-sub">离线 · 私有</span>
+          </span>
+        </div>
+        <button id="btn-collapse-sidebar" class="icon-btn" type="button" aria-label="收起侧边栏" title="收起侧边栏">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+        </button>
+      </div>
+
+      <button id="btn-new-chat" class="new-chat-btn" type="button" title="新对话 (Ctrl+Shift+O)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>新对话</span>
+      </button>
+
+      <div class="sb-scroll">
+        <section class="sb-section" aria-labelledby="files-heading">
+          <h2 class="sb-heading" id="files-heading">工作区文件</h2>
+          <ul id="file-list" class="file-list"></ul>
+          <p id="file-list-empty" class="sb-empty">还没有文件。点输入框左下角的 ＋ 就能添加。</p>
+        </section>
+      </div>
+
+      <div class="sb-bottom">
+        <div class="memory-row">
+          <span class="memory-label">长期记忆：<b id="memory-count">0</b> 条</span>
+          <div class="menu-wrap">
+            <button id="btn-memory-menu" class="link-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="memory-menu">管理</button>
+            <div id="memory-menu" class="menu menu-up menu-end" role="menu" hidden>
+              <button id="btn-flush" class="menu-item" type="button" role="menuitem">
+                <span>存入记忆</span><small>把工作区文件保存为长期记忆</small>
+              </button>
+              <button id="btn-clear-rag" class="menu-item danger" type="button" role="menuitem">
+                <span>清空记忆…</span><small>删除助手记住的全部内容</small>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p id="kg-mini-status" class="kg-mini" hidden></p>
+        <a class="sb-link" href="/ide">
+          <span aria-hidden="true">⌨</span><span>打开 IDE</span>
+        </a>
+        <div class="sb-footer-row">
+          <button id="btn-open-settings" class="ghost-btn" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            <span>设置</span>
+          </button>
+          <button id="theme-toggle" class="ghost-btn" type="button" aria-label="主题：跟随系统（点击切换）" title="切换主题">
+            <span class="theme-icon" aria-hidden="true"></span>
+            <span id="theme-label">跟随系统</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" id="sidebar-scrim" hidden></div>
+
+    <!-- ============ 主对话区 ============ -->
+    <main class="main">
+      <header class="topbar">
+        <button id="btn-toggle-sidebar" class="icon-btn" type="button" aria-label="打开侧边栏" aria-controls="app-sidebar" aria-expanded="false" title="打开侧边栏">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+        </button>
+        <h1 id="chat-title" class="topbar-title">新对话</h1>
+        <span id="connection-status" class="conn-status" role="status" hidden>
+          <span class="dot" id="connection-dot"></span><span id="connection-text"></span>
+        </span>
+        <button id="btn-toggle-outline" class="icon-btn" type="button" aria-controls="questions-sidebar" aria-expanded="false" aria-label="提问目录" title="提问目录">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+        </button>
+      </header>
+
+      <div class="chat-scroll" id="chat-messages">
+        <section class="empty-state" id="empty-state">
+          <h2 class="greeting">你好，有什么可以帮你？</h2>
+          <p class="greeting-sub">对话全程在你的电脑上完成，不会上传到网络。</p>
+          <div class="suggestions">
+            <button class="suggestion-chip" type="button" data-prompt="帮我总结一下这个文件的要点：">
+              <span class="chip-emoji" aria-hidden="true">📄</span><span>帮我总结一个文件</span>
+            </button>
+            <button class="suggestion-chip" type="button" data-prompt="帮我写一段 Python 代码，">
+              <span class="chip-emoji" aria-hidden="true">🐍</span><span>写一段 Python 代码</span>
+            </button>
+            <button class="suggestion-chip" type="button" data-prompt="用通俗的话给我解释一下：">
+              <span class="chip-emoji" aria-hidden="true">💡</span><span>解释一个概念</span>
+            </button>
+            <button class="suggestion-chip" type="button" data-prompt="帮我上网查一下最新消息：" data-web-search="true">
+              <span class="chip-emoji" aria-hidden="true">🌐</span><span>联网查最新消息</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <footer class="composer-wrap">
+        <button id="scroll-bottom-btn" class="scroll-bottom-btn" type="button" aria-label="回到底部" title="回到底部">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="composer" id="composer">
+          <input type="file" id="file-input" multiple hidden
+                 accept=".txt,.py,.md,.json,.csv,.log,.yaml,.yml,.sh,.js,.ts,.html,.css,.c,.cpp,.java,.go,.rs,.sql,.pdf,.docx,.doc">
+          <label for="chat-input" class="sr-only">给助手发消息</label>
+          <textarea id="chat-input" rows="1" placeholder="给助手发消息…"></textarea>
+          <div class="composer-bar">
+            <div class="menu-wrap">
+              <button id="btn-attach" class="icon-btn round" type="button" aria-label="添加文件或网页" title="添加文件或网页" aria-haspopup="menu" aria-expanded="false" aria-controls="attach-menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <div id="attach-menu" class="menu menu-up" role="menu" hidden>
+                <button id="upload-btn" class="menu-item" type="button" role="menuitem">
+                  <span>📎 上传文件</span><small>文档、PDF、Word、代码</small>
+                </button>
+                <button id="local-fs-btn" class="menu-item" type="button" role="menuitem">
+                  <span>📂 打开本地文件</span><small>直接读取电脑里的文件</small>
+                </button>
+                <button id="url-fetch-btn" class="menu-item" type="button" role="menuitem">
+                  <span>🔗 导入网页</span><small>粘贴网址，读取网页正文</small>
+                </button>
+                <label class="menu-check">
+                  <input type="checkbox" id="ocr-checkbox">
+                  <span>扫描版 PDF 使用文字识别（较慢）</span>
+                </label>
+                <div class="menu-section" id="prompt-menu-section" hidden>
+                  <div class="menu-section-label" id="prompt-menu-label">系统提示词</div>
+                  <div id="prompt-menu-list" role="group" aria-labelledby="prompt-menu-label"></div>
+                </div>
+              </div>
+            </div>
+            <button id="web-search-toggle-btn" class="chip-toggle" type="button" aria-pressed="false" title="回答前先上网搜索最新资料">
+              <span aria-hidden="true">🌐</span><span class="chip-label">联网</span>
+            </button>
+            <button id="thinking-toggle-btn" class="chip-toggle" type="button" aria-pressed="false" title="先仔细思考再回答（更慢，但更适合难题）">
+              <span aria-hidden="true">💡</span><span class="chip-label">深度思考</span>
+            </button>
+            <button id="tools-toggle-btn" class="chip-toggle" type="button" aria-pressed="false" title="允许助手调用工具（搜索、读写文件、MCP 等），有风险的操作会先征求你的同意">
+              <span aria-hidden="true">🧰</span><span class="chip-label">工具</span>
+            </button>
+            <button id="prompt-chip" class="chip-toggle prompt-chip active" type="button" hidden aria-haspopup="menu" aria-controls="attach-menu" title="当前系统提示词（点击切换）">
+              <span aria-hidden="true">📝</span><span class="chip-label" id="prompt-chip-label"></span>
+            </button>
+            <span class="bar-spacer"></span>
+            <span class="model-chip" id="model-chip">
+              <select id="model-select" aria-label="选择模型">
+                <option value="" selected>加载中…</option>
+              </select>
+              <span id="model-chip-status" class="model-chip-status" hidden>切换中…</span>
+            </span>
+            <button id="send-btn" class="send-btn" type="button" aria-label="发送消息" title="发送 (Enter)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="composer-hint" id="composer-hint">Enter 发送 · Shift+Enter 换行 · 内容仅保存在本机</p>
+      </footer>
+    </main>
+
+    <!-- ============ 右侧提问目录 (默认隐藏) ============ -->
+    <aside class="outline collapsed" id="questions-sidebar" aria-label="提问目录">
+      <div class="outline-header">
+        <h2>提问目录 <span class="count-badge" id="questions-count-badge">0</span></h2>
+        <button id="btn-close-outline" class="icon-btn" type="button" aria-label="关闭提问目录" title="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="outline-list" id="questions-list"></div>
+    </aside>
+  </div>
+
+  <!-- ============ 设置 ============ -->
+  <div id="settings-modal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-header">
+        <h3 id="settings-title">设置</h3>
+        <button class="icon-btn modal-close" type="button" data-close aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="settings-tabs" role="tablist" aria-label="设置分类">
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-general" data-tab="general" aria-controls="settings-panel-general" aria-selected="true">常规</button>
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-tools" data-tab="tools" aria-controls="settings-panel-tools" aria-selected="false" tabindex="-1">工具</button>
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-mcp" data-tab="mcp" aria-controls="settings-panel-mcp" aria-selected="false" tabindex="-1">MCP</button>
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-skills" data-tab="skills" aria-controls="settings-panel-skills" aria-selected="false" tabindex="-1">技能</button>
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-kg" data-tab="kg" aria-controls="settings-panel-kg" aria-selected="false" tabindex="-1">知识图谱</button>
+        <button class="settings-tab" type="button" role="tab" id="settings-tab-prompts" data-tab="prompts" aria-controls="settings-panel-prompts" aria-selected="false" tabindex="-1">系统提示词</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-panel" role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general">
+        <section class="settings-group">
+          <h4>对话</h4>
+          <label class="switch-row">
+            <span><b>默认开启深度思考</b><small>新对话里自动打开「💡 深度思考」，回答更仔细但更慢。</small></span>
+            <input type="checkbox" id="setting-thinking-default" class="switch">
+          </label>
+          <label class="switch-row">
+            <span><b>默认开启联网搜索</b><small>每次打开页面时自动打开「🌐 联网」。</small></span>
+            <input type="checkbox" id="search-default-enable-checkbox" class="switch">
+          </label>
+        </section>
+
+        <section class="settings-group">
+          <h4>联网搜索</h4>
+          <div class="field">
+            <div class="field-label-row">
+              <label for="exa-api-key-input">Exa 搜索密钥（可选）</label>
+              <a href="https://dashboard.exa.ai" target="_blank" rel="noopener noreferrer" class="text-link">免费获取 ↗</a>
+            </div>
+            <div class="input-row">
+              <input type="password" id="exa-api-key-input" class="text-input" placeholder="留空也能搜索，填写后结果更准" autocomplete="off">
+              <button id="btn-save-exa-key" class="btn btn-primary" type="button">保存</button>
+            </div>
+            <p class="field-hint" id="exa-key-status">正在读取…</p>
+          </div>
+          <label class="switch-row">
+            <span><b>每次搜索的结果数</b><small>结果越多，回答参考越全面，但速度越慢。</small></span>
+            <select id="search-num-results" class="select-input" aria-label="每次搜索的结果数">
+              <option value="2">2 条</option><option value="3">3 条</option><option value="4">4 条</option>
+              <option value="5">5 条</option><option value="6">6 条</option><option value="8">8 条</option><option value="10">10 条</option>
+            </select>
+          </label>
+          <label class="switch-row">
+            <span><b>同时搜索开源模型和数据集</b><small>问到 AI 模型相关问题时，顺便查 Hugging Face。</small></span>
+            <input type="checkbox" id="search-hf-enable-checkbox" class="switch" checked>
+          </label>
+          <label class="switch-row">
+            <span><b>搜索结果自动存入长期记忆</b><small>以后不联网也能用到这些资料。</small></span>
+            <input type="checkbox" id="search-auto-save-checkbox" class="switch">
+          </label>
+          <details class="sub-details">
+            <summary>试一试搜索</summary>
+            <div class="input-row">
+              <input type="text" id="manual-search-input" class="text-input" placeholder="输入关键词，例如：今天的天气" autocomplete="off" aria-label="搜索关键词">
+              <button id="manual-search-submit" class="btn" type="button">搜索</button>
+            </div>
+            <div id="manual-search-results" class="manual-search-results" hidden></div>
+          </details>
+        </section>
+
+        <details class="settings-group dev-details" id="dev-info">
+          <summary>开发者信息</summary>
+          <p class="field-hint">以下为运行状态的技术细节，仅在打开设置时刷新。</p>
+          <dl class="dev-list" id="dev-info-list"></dl>
+        </details>
+        </div>
+
+        <!-- 工具 -->
+        <div class="settings-panel" role="tabpanel" id="settings-panel-tools" aria-labelledby="settings-tab-tools" hidden>
+          <p class="panel-intro">在输入框打开「🧰 工具」后，助手可以调用下面这些工具。标为「需确认」的工具每次执行前都会先征求你的同意。</p>
+          <div id="agent-tools-list" class="agent-list" aria-live="polite"><p class="agent-empty">正在读取…</p></div>
+        </div>
+
+        <!-- MCP -->
+        <div class="settings-panel" role="tabpanel" id="settings-panel-mcp" aria-labelledby="settings-tab-mcp" hidden>
+          <p class="panel-intro">MCP 服务器可以为助手提供更多工具，例如读写文件、查询数据库或操作浏览器。</p>
+          <div class="panel-actions">
+            <button id="btn-mcp-add" class="btn btn-sm btn-primary" type="button">＋ 添加服务器</button>
+            <button id="btn-mcp-import" class="btn btn-sm" type="button">导入 JSON</button>
+          </div>
+
+          <form id="mcp-form" class="agent-form" hidden novalidate>
+            <h4 id="mcp-form-title" class="agent-form-title">添加服务器</h4>
+            <div class="field">
+              <label for="mcp-name">名称</label>
+              <input type="text" id="mcp-name" class="text-input" placeholder="例如：filesystem" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="mcp-transport">连接方式</label>
+              <select id="mcp-transport" class="select-input">
+                <option value="stdio">本地命令 (stdio)</option>
+                <option value="http">HTTP</option>
+                <option value="sse">SSE</option>
+              </select>
+            </div>
+            <div id="mcp-stdio-fields">
+              <div class="field">
+                <label for="mcp-command">命令</label>
+                <input type="text" id="mcp-command" class="text-input mono" placeholder="例如：npx" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="field">
+                <label for="mcp-args">参数（每行一个）</label>
+                <textarea id="mcp-args" class="text-area mono" rows="3" spellcheck="false" placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;C:\Users\me\Documents"></textarea>
+              </div>
+              <div class="field">
+                <label for="mcp-env">环境变量（每行一个 KEY=VALUE）</label>
+                <textarea id="mcp-env" class="text-area mono" rows="2" spellcheck="false" placeholder="API_KEY=sk-..."></textarea>
+              </div>
+            </div>
+            <div id="mcp-http-fields" hidden>
+              <div class="field">
+                <label for="mcp-url">地址</label>
+                <input type="url" id="mcp-url" class="text-input mono" placeholder="https://example.com/mcp" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="field">
+                <label for="mcp-headers">请求头（每行一个 Key: Value）</label>
+                <textarea id="mcp-headers" class="text-area mono" rows="2" spellcheck="false" placeholder="Authorization: Bearer ..."></textarea>
+              </div>
+            </div>
+            <p class="field-hint agent-form-hint" id="mcp-secret-hint" hidden>显示为 *** 的值是已保存的密钥，不修改就会保持不变。</p>
+            <p id="mcp-form-status" class="status-line" role="status" hidden></p>
+            <div class="agent-form-actions">
+              <button id="mcp-form-cancel" class="btn btn-sm" type="button">取消</button>
+              <button id="mcp-form-save" class="btn btn-sm btn-primary" type="submit">保存</button>
+            </div>
+          </form>
+
+          <div id="mcp-import-box" class="agent-form" hidden>
+            <h4 class="agent-form-title">导入 JSON</h4>
+            <p class="field-hint">粘贴 Claude Desktop 或 Cursor 的配置，格式为 <code>{"mcpServers": {…}}</code>。</p>
+            <label for="mcp-import-json" class="sr-only">MCP 配置 JSON</label>
+            <textarea id="mcp-import-json" class="text-area mono" rows="7" spellcheck="false" placeholder='{"mcpServers": {"filesystem": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}}}'></textarea>
+            <p id="mcp-import-status" class="status-line" role="status" hidden></p>
+            <div class="agent-form-actions">
+              <button id="mcp-import-cancel" class="btn btn-sm" type="button">取消</button>
+              <button id="mcp-import-submit" class="btn btn-sm btn-primary" type="button">导入</button>
+            </div>
+          </div>
+
+          <div id="mcp-server-list" class="agent-list" aria-live="polite"><p class="agent-empty">正在读取…</p></div>
+        </div>
+
+        <!-- 技能 -->
+        <div class="settings-panel" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-skills" hidden>
+          <p class="panel-intro">技能是一段说明书，AI 需要时会自动读取。</p>
+          <div class="panel-actions">
+            <button id="btn-skill-new" class="btn btn-sm btn-primary" type="button">＋ 新建技能</button>
+            <button id="btn-skill-import" class="btn btn-sm" type="button">导入 .md / .zip</button>
+            <input type="file" id="skill-import-file" accept=".md,.zip" hidden>
+          </div>
+          <p id="skill-import-status" class="status-line" role="status" hidden></p>
+
+          <form id="skill-form" class="agent-form" hidden novalidate>
+            <h4 id="skill-form-title" class="agent-form-title">新建技能</h4>
+            <div class="field">
+              <label for="skill-name">名称</label>
+              <input type="text" id="skill-name" class="text-input" placeholder="例如：周报写作" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="skill-description">什么时候用（一句话）</label>
+              <input type="text" id="skill-description" class="text-input" placeholder="例如：用户要写周报或工作总结时使用" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="skill-content">说明书内容（Markdown）</label>
+              <textarea id="skill-content" class="text-area mono skill-editor" rows="10" spellcheck="false" placeholder="# 周报写作&#10;&#10;1. 先列出本周完成的事项…"></textarea>
+            </div>
+            <p id="skill-form-status" class="status-line" role="status" hidden></p>
+            <div class="agent-form-actions">
+              <button id="skill-form-cancel" class="btn btn-sm" type="button">取消</button>
+              <button id="skill-form-save" class="btn btn-sm btn-primary" type="submit">保存</button>
+            </div>
+          </form>
+
+          <div id="skill-list" class="agent-list" aria-live="polite"><p class="agent-empty">正在读取…</p></div>
+        </div>
+
+        <!-- 知识图谱 -->
+        <div class="settings-panel" role="tabpanel" id="settings-panel-kg" aria-labelledby="settings-tab-kg" hidden>
+          <p class="panel-intro">助手会在你不对话时，把记忆整理成「人物/项目/概念」之间的关系，回答时一起参考。</p>
+
+          <section class="kg-status-card" id="kg-status-card" aria-live="polite">
+            <div class="kg-status-head">
+              <span class="status-dot" id="kg-state-dot" aria-hidden="true"></span>
+              <b id="kg-state-text">正在读取…</b>
+            </div>
+            <p class="kg-counts" id="kg-counts">实体 0 · 关系 0 · 待处理 0</p>
+            <p class="field-hint" id="kg-state-hint"></p>
+            <details class="mcp-details mcp-error" id="kg-last-error" hidden>
+              <summary>查看最近一次整理失败的原因</summary>
+              <pre id="kg-last-error-text"></pre>
+            </details>
+          </section>
+
+          <label class="switch-row">
+            <span><b>启用知识图谱</b><small>关闭后不再整理新记忆，回答时也不参考关系。</small></span>
+            <input type="checkbox" id="kg-enabled" class="switch">
+          </label>
+          <label class="switch-row">
+            <span><b>暂停整理</b><small>暂时不在后台整理；已整理好的关系仍会参考。</small></span>
+            <input type="checkbox" id="kg-paused" class="switch">
+          </label>
+          <label class="switch-row">
+            <span><b>空闲多久后开始整理</b><small>你停止对话这么久之后，助手才会开始整理。</small></span>
+            <select id="kg-idle" class="select-input" aria-label="空闲多久后开始整理">
+              <option value="10">10 秒</option><option value="20">20 秒</option>
+              <option value="60">1 分钟</option><option value="300">5 分钟</option>
+            </select>
+          </label>
+          <div class="panel-actions kg-actions">
+            <button id="kg-rebuild-missing" class="btn btn-sm btn-primary" type="button">整理已有记忆</button>
+            <button id="kg-rebuild-all" class="btn btn-sm" type="button">重新整理全部</button>
+            <button id="kg-clear-errors" class="btn btn-sm" type="button" hidden>清除失败任务</button>
+          </div>
+          <p id="kg-action-status" class="status-line kg-action-status" role="status" hidden></p>
+
+          <section class="kg-browser" aria-label="实体浏览">
+            <h4 class="kg-browser-title">实体浏览</h4>
+            <div id="kg-list-view">
+              <label for="kg-search" class="sr-only">搜索实体</label>
+              <input type="search" id="kg-search" class="text-input" placeholder="搜索人物、项目或概念…" autocomplete="off" spellcheck="false">
+              <p class="field-hint" id="kg-list-meta"></p>
+              <div id="kg-entity-list" class="kg-entity-list" aria-live="polite"></div>
+              <button id="kg-more" class="btn btn-sm kg-more" type="button" hidden>加载更多</button>
+            </div>
+            <div id="kg-detail" class="kg-detail" hidden></div>
+          </section>
+        </div>
+
+        <!-- 系统提示词 -->
+        <div class="settings-panel" role="tabpanel" id="settings-panel-prompts" aria-labelledby="settings-tab-prompts" hidden>
+          <p class="panel-intro">系统提示词决定助手的角色和说话方式。选中的预设会用于之后的每次对话。</p>
+          <label class="switch-row">
+            <span><b>使用方式</b><small>「追加」会保留内置能力说明；「替换」完全改用你的提示词。</small></span>
+            <select id="prompt-mode" class="select-input" aria-label="提示词使用方式">
+              <option value="append">追加到内置提示</option>
+              <option value="replace">替换内置提示</option>
+            </select>
+          </label>
+          <div class="panel-actions">
+            <button id="btn-prompt-new" class="btn btn-sm btn-primary" type="button">＋ 新建预设</button>
+          </div>
+
+          <form id="prompt-form" class="agent-form" hidden novalidate>
+            <h4 id="prompt-form-title" class="agent-form-title">新建预设</h4>
+            <div class="field">
+              <label for="prompt-name">名称</label>
+              <input type="text" id="prompt-name" class="text-input" placeholder="例如：严谨的代码审查员" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="prompt-content">提示词内容</label>
+              <textarea id="prompt-content" class="text-area" rows="6" placeholder="你是一名严谨的代码审查员，回答时先指出风险，再给出修改建议。"></textarea>
+            </div>
+            <p id="prompt-form-status" class="status-line" role="status" hidden></p>
+            <div class="agent-form-actions">
+              <button id="prompt-form-cancel" class="btn btn-sm" type="button">取消</button>
+              <button id="prompt-form-save" class="btn btn-sm btn-primary" type="submit">保存</button>
+            </div>
+          </form>
+
+          <div id="prompt-list" class="agent-list" role="radiogroup" aria-label="提示词预设"><p class="agent-empty">正在读取…</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 导入网页 ============ -->
+  <div id="url-modal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-sm" role="dialog" aria-modal="true" aria-labelledby="url-modal-title">
+      <div class="modal-header">
+        <h3 id="url-modal-title">导入网页</h3>
+        <button class="icon-btn modal-close" type="button" data-close aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">粘贴一个网址，助手会读取网页正文并去掉广告，之后你就可以就这篇内容提问。</p>
+        <div class="input-row">
+          <input type="url" id="url-modal-input" class="text-input" placeholder="https://example.com/article" autocomplete="off" aria-label="网址">
+          <button id="url-modal-submit" class="btn btn-primary" type="button">导入</button>
+        </div>
+        <p id="url-modal-status" class="status-line" role="status" hidden></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 本地文件浏览与编辑 ============ -->
+  <div id="local-fs-modal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-lg" role="dialog" aria-modal="true" aria-labelledby="local-fs-modal-title">
+      <div class="modal-header">
+        <h3 id="local-fs-modal-title">打开本地文件</h3>
+        <button id="local-fs-modal-close" class="icon-btn modal-close" type="button" data-close aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="fs-breadcrumb" class="fs-breadcrumb"><span>此电脑</span></div>
+      <div class="fs-search-container">
+        <input type="text" id="fs-search-input" class="text-input" placeholder="筛选当前文件夹…" autocomplete="off" aria-label="筛选文件名">
+        <span id="fs-count-badge" class="fs-count-badge"></span>
+      </div>
+      <div id="fs-file-list" class="fs-file-list"><div class="fs-loading">正在加载…</div></div>
+
+      <div id="fs-preview" class="fs-preview" hidden>
+        <div class="fs-preview-header">
+          <div class="fs-preview-title">
+            <span id="fs-preview-name"></span>
+            <span id="fs-preview-meta" class="fs-preview-meta"></span>
+          </div>
+          <div class="fs-preview-actions">
+            <button id="fs-toggle-edit-btn" class="btn btn-sm" type="button">编辑</button>
+            <label id="fs-ocr-label" class="inline-check" hidden>
+              <input type="checkbox" id="fs-ocr-checkbox"> 文字识别（扫描版 PDF）
+            </label>
+            <button id="fs-save-file-btn" class="btn btn-sm btn-primary" type="button" hidden title="保存并写回磁盘 (Ctrl+S)">保存</button>
+            <button id="fs-mount-btn" class="btn btn-sm btn-primary" type="button">添加到对话</button>
+            <button id="fs-preview-close" class="icon-btn" type="button" aria-label="关闭预览" title="关闭预览">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <pre id="fs-preview-content" class="fs-preview-content"></pre>
+        <textarea id="fs-editor-content" class="fs-editor-content" hidden spellcheck="false" aria-label="编辑文件内容"></textarea>
+        <div id="fs-editor-footer" class="fs-editor-footer" hidden>
+          <label class="inline-check"><input type="checkbox" id="fs-backup-checkbox" checked> 保存前先备份为 .bak</label>
+          <span id="fs-save-status" class="fs-save-status" role="status"></span>
+          <span class="muted">Ctrl+S 保存</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="muted">可以预览、编辑并保存文件；「添加到对话」后即可就它提问。</span>
+        <span id="fs-modal-status" class="fs-save-status" role="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 写回本地文件 ============ -->
+  <div id="write-back-modal" class="modal-backdrop" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="write-back-modal-title">
+      <div class="modal-header">
+        <h3 id="write-back-modal-title">写回本地文件</h3>
+        <button id="write-back-modal-close" class="icon-btn modal-close" type="button" data-close aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="write-back-path-input">目标文件</label>
+          <select id="write-back-file-select" class="select-input" aria-label="从工作区文件中选择">
+            <option value="">从工作区文件中选择…</option>
+          </select>
+          <input type="text" id="write-back-path-input" class="text-input mono" placeholder="或输入完整路径，例如 C:\Users\me\project\main.py">
+        </div>
+        <div class="field">
+          <div class="field-label-row">
+            <label for="write-back-code-preview">将写入的内容</label>
+            <span id="write-back-code-stats" class="muted">0 行 · 0 字符</span>
+          </div>
+          <textarea id="write-back-code-preview" class="fs-editor-content" spellcheck="false"></textarea>
+        </div>
+        <label class="inline-check"><input type="checkbox" id="write-back-backup-checkbox" checked> 覆盖前先备份为 <code>.bak</code> 文件</label>
+        <p id="write-back-status-msg" class="status-line" role="status" hidden></p>
+      </div>
+      <div class="modal-footer end">
+        <button id="write-back-cancel-btn" class="btn" type="button">取消</button>
+        <button id="write-back-submit-btn" class="btn btn-primary" type="button">写入文件</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 确认对话框 ============ -->
+  <div id="confirm-modal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+      <div class="modal-header"><h3 id="confirm-title"></h3></div>
+      <div class="modal-body"><p id="confirm-body" class="modal-desc"></p></div>
+      <div class="modal-footer end">
+        <button id="confirm-cancel" class="btn" type="button">取消</button>
+        <button id="confirm-ok" class="btn btn-primary" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js?v=11"></script>
+</body>
+</html>

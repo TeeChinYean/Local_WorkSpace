@@ -1,0 +1,32 @@
+# --- runtime ---
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+python-multipart>=0.0.6
+pydantic>=2
+requests
+httpx
+numpy
+turbovec
+onnxruntime>=1.17        # Embedding 默认后端 (ONNX Runtime fp32, CPU)
+tokenizers>=0.15         # Embedding 分词 (与 onnxruntime 配合，无需 torch)
+psutil
+beautifulsoup4
+pymupdf
+python-docx
+ujson
+laya
+pywinpty; sys_platform == "win32"   # IDE 真终端 (PTY)
+# Agent (app/agent)：MCP 客户端只依赖 httpx (无需 mcp SDK)；Skills frontmatter 若安装了 PyYAML 则优先使用，
+# 未安装时使用内置的简易 key: value 解析器，因此 PyYAML 为可选依赖:
+# pyyaml
+
+# --- optional: 仅首次导出 ONNX 或 EMBEDDING_BACKEND=torch 时需要 ---
+# 首次启动若 app/models/<模型>-onnx/model_fp32.onnx 不存在，会在独立子进程中用 torch 导出一次 (约 10-60 秒)，
+# 之后网关进程不再导入 torch。导出完成后可卸载以下三项 (仅保留 EMBEDDING_BACKEND=onnx 时)。
+torch
+sentence-transformers    # 含 transformers；导出时用于一致性校验，EMBEDDING_BACKEND=torch 时为推理后端
+onnx                     # torch.onnx.export 需要 (仅导出时)
+
+# --- dev / tests (pytest app/tests) ---
+pytest
+playwright

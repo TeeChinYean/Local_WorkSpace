@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>本地 IDE</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/vendor/xterm.css">
+  <link rel="stylesheet" href="/static/ide.css">
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- ===== Title bar ===== -->
+    <header class="titlebar" role="banner">
+      <div class="tb-left">
+        <span class="tb-logo" aria-hidden="true">⌘</span>
+        <span id="ws-name" class="tb-ws" title="工作区">加载中…</span>
+        <button id="branch-chip" class="chip" type="button" hidden aria-label="当前分支，点击打开源代码管理">
+          <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm9-6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 5v6M12.5 8c0 2-2 3-5 3.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span id="branch-chip-text"></span>
+        </button>
+      </div>
+      <div class="tb-right">
+        <button id="btn-switch-ws" class="tb-btn" type="button">切换工作区</button>
+        <a class="tb-btn tb-link" href="/">← 聊天</a>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- ===== Activity bar ===== -->
+      <nav class="activitybar" aria-label="活动栏">
+        <button class="act-btn active" type="button" data-view="explorer" aria-label="资源管理器 (Ctrl+Shift+E)" title="资源管理器 (Ctrl+Shift+E)" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="act-btn" type="button" data-view="search" aria-label="搜索 (Ctrl+Shift+F)" title="搜索 (Ctrl+Shift+F)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <button class="act-btn" type="button" data-view="scm" aria-label="源代码管理 (Ctrl+Shift+G)" title="源代码管理 (Ctrl+Shift+G)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="19" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7.2v9.6M18 11.2c0 3-3 4.5-9.5 5.6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span id="scm-badge" class="badge" hidden>0</span>
+        </button>
+        <div class="act-spacer"></div>
+        <button id="act-ai" class="act-btn" type="button" aria-label="AI 对话 (Ctrl+L)" title="AI 对话 (Ctrl+L)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+        <button id="act-term" class="act-btn" type="button" aria-label="终端 (Ctrl+`)" title="终端 (Ctrl+`)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 9.5l3 2.5-3 2.5M12 15h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </nav>
+
+      <!-- ===== Side bar ===== -->
+      <aside id="sidebar" class="sidebar" aria-label="侧边栏">
+        <!-- Explorer -->
+        <section id="view-explorer" class="view" data-view="explorer" aria-label="资源管理器">
+          <div class="view-head">
+            <h2 class="view-title">资源管理器</h2>
+            <div class="view-actions">
+              <button class="icon-btn" type="button" id="ex-new-file" aria-label="新建文件" title="新建文件">＋</button>
+              <button class="icon-btn" type="button" id="ex-new-dir" aria-label="新建文件夹" title="新建文件夹">📁</button>
+              <button class="icon-btn" type="button" id="ex-refresh" aria-label="刷新" title="刷新">⟳</button>
+              <button class="icon-btn" type="button" id="ex-collapse" aria-label="全部折叠" title="全部折叠">⊟</button>
+            </div>
+          </div>
+          <div id="tree" class="tree" role="tree" aria-label="文件树"></div>
+        </section>
+
+        <!-- Search -->
+        <section id="view-search" class="view" data-view="search" aria-label="搜索" hidden>
+          <div class="view-head"><h2 class="view-title">搜索</h2></div>
+          <div class="search-form">
+            <div class="input-row">
+              <input id="search-q" class="input" type="search" placeholder="搜索 (Enter)" aria-label="搜索内容" autocomplete="off" spellcheck="false">
+              <button id="search-case" class="toggle-btn" type="button" aria-pressed="false" aria-label="区分大小写" title="区分大小写">Aa</button>
+              <button id="search-regex" class="toggle-btn" type="button" aria-pressed="false" aria-label="使用正则表达式" title="使用正则表达式">.*</button>
+            </div>
+            <input id="search-glob" class="input" type="text" placeholder="包含的文件 (例如 *.py)" aria-label="文件过滤" autocomplete="off" spellcheck="false">
+            <div id="search-summary" class="muted small" aria-live="polite"></div>
+          </div>
+          <div id="search-results" class="search-results"></div>
+        </section>
+
+        <!-- Source control -->
+        <section id="view-scm" class="view" data-view="scm" aria-label="源代码管理" hidden>
+          <div class="view-head">
+            <h2 class="view-title">源代码管理</h2>
+            <div class="view-actions">
+              <button class="icon-btn" type="button" id="scm-pull" aria-label="拉取" title="拉取">⇣</button>
+              <button class="icon-btn" type="button" id="scm-push" aria-label="推送" title="推送">⇡</button>
+              <button class="icon-btn" type="button" id="scm-refresh" aria-label="刷新" title="刷新">⟳</button>
+            </div>
+          </div>
+          <div id="scm-norepo" class="scm-norepo" hidden>
+            <p class="muted">当前工作区不是 Git 仓库。</p>
+            <button id="scm-init" class="btn primary" type="button">初始化仓库</button>
+          </div>
+          <div id="scm-body" class="scm-body">
+            <div class="scm-branch-row">
+              <label class="muted small" for="scm-branch">分支</label>
+              <select id="scm-branch" class="select" aria-label="切换分支"></select>
+            </div>
+            <textarea id="scm-msg" class="input scm-msg" rows="3" placeholder="提交信息 (Ctrl+Enter 提交)" aria-label="提交信息"></textarea>
+            <button id="scm-commit" class="btn primary block" type="button">✓ 提交</button>
+            <div id="scm-groups" class="scm-groups"></div>
+            <details id="scm-history" class="scm-history">
+              <summary>历史</summary>
+              <div id="scm-log" class="scm-log"></div>
+            </details>
+          </div>
+        </section>
+      </aside>
+      <div id="sidebar-resizer" class="resizer v" role="separator" aria-orientation="vertical" aria-label="调整侧边栏宽度" tabindex="0"></div>
+
+      <!-- ===== Center: editor + bottom panel ===== -->
+      <div class="center">
+        <section class="editor-area" aria-label="编辑器">
+          <div id="tabs" class="tabs" role="tablist" aria-label="打开的文件"></div>
+          <div id="breadcrumb" class="breadcrumb" aria-label="路径"></div>
+          <div class="editor-stack">
+            <div id="editor-host" class="editor-host" hidden></div>
+            <div id="diff-host" class="diff-host" hidden></div>
+            <div id="placeholder-host" class="placeholder-host" hidden></div>
+            <div id="welcome" class="welcome">
+              <h1>本地 IDE</h1>
+              <p class="muted">轻量级 · 离线 · 本地大模型辅助</p>
+              <dl class="shortcuts">
+                <dt><kbd>Ctrl</kbd>+<kbd>P</kbd></dt><dd>快速打开文件</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>保存</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></dt><dd>资源管理器</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></dt><dd>全局搜索</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd></dt><dd>源代码管理</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>L</kbd></dt><dd>AI 对话</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>`</kbd></dt><dd>终端面板</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>F</kbd></dt><dd>在文件中查找</dd>
+              </dl>
+            </div>
+          </div>
+        </section>
+
+        <div id="panel-resizer" class="resizer h" role="separator" aria-orientation="horizontal" aria-label="调整面板高度" tabindex="0" hidden></div>
+        <section id="panel" class="panel" aria-label="终端面板" hidden>
+          <div class="panel-head">
+            <span class="panel-title">终端</span>
+            <div id="term-tabs" class="term-tabs" role="tablist" aria-label="终端列表"></div>
+            <div class="view-actions term-actions">
+              <span class="term-new-group">
+                <button id="term-new" class="icon-btn" type="button" aria-label="新建终端 (Ctrl+Shift+`)" title="新建终端 (Ctrl+Shift+`)">＋</button>
+                <button id="term-profiles" class="icon-btn term-drop" type="button" aria-haspopup="menu" aria-label="选择配置文件新建终端" title="启动配置文件…">˅</button>
+              </span>
+              <button id="term-kill" class="icon-btn" type="button" aria-label="终止终端" title="终止终端">🗑</button>
+              <button id="panel-max" class="icon-btn" type="button" aria-pressed="false" aria-label="最大化面板" title="最大化面板大小">⌃</button>
+              <button id="panel-close" class="icon-btn" type="button" aria-label="关闭面板" title="关闭面板 (Ctrl+`)">✕</button>
+            </div>
+          </div>
+          <div id="term-body" class="term-body"></div>
+        </section>
+      </div>
+
+      <!-- ===== AI panel ===== -->
+      <div id="ai-resizer" class="resizer v" role="separator" aria-orientation="vertical" aria-label="调整 AI 面板宽度" tabindex="0" hidden></div>
+      <aside id="ai-panel" class="ai-panel" aria-label="AI 对话" hidden>
+        <div class="view-head">
+          <h2 class="view-title">AI 对话</h2>
+          <div class="view-actions">
+            <button id="ai-add-ctx" class="icon-btn" type="button" aria-label="添加当前文件到上下文" title="添加当前文件到上下文">📎</button>
+            <button id="ai-clear" class="icon-btn" type="button" aria-label="清空对话列表" title="清空对话列表">⌫</button>
+            <button id="ai-close" class="icon-btn" type="button" aria-label="关闭 AI 面板" title="关闭 (Ctrl+L)">✕</button>
+          </div>
+        </div>
+        <div id="ai-list" class="ai-list" aria-live="polite">
+          <div class="ai-empty muted">向本地模型提问。代码块可一键“应用到编辑器”。</div>
+        </div>
+        <div class="ai-input-wrap">
+          <div class="ai-opts-row">
+            <label class="ai-opt small muted"><input id="ai-with-sel" type="checkbox" checked> 附带编辑器中选中的代码</label>
+            <span class="ai-spacer"></span>
+            <span id="ai-prompt-wrap" class="ai-prompt-wrap" hidden>
+              <select id="ai-prompt" class="select ai-prompt" aria-label="系统提示词预设" title="系统提示词预设（仅本面板的问答）"></select>
+              <span id="ai-prompt-name" class="ai-prompt-name small muted" hidden title="编辑模式会自动追加当前默认的系统提示词"></span>
+            </span>
+            <a id="ai-manage" class="ai-manage small" href="/#settings-tools" target="_blank" rel="noopener" title="在聊天页的设置里管理工具、MCP、技能和系统提示词">管理…</a>
+          </div>
+          <div id="ai-ctx" class="ai-ctx" aria-label="上下文文件" hidden></div>
+          <textarea id="ai-input" class="input ai-input" rows="3" placeholder="输入问题，Enter 发送，Shift+Enter 换行" aria-label="AI 提问"></textarea>
+          <div class="ai-actions">
+            <div class="ai-row">
+              <div class="ai-seg" role="group" aria-label="AI 模式">
+                <button id="ai-mode-ask" class="ai-seg-btn" type="button" aria-pressed="true" title="问答：普通对话">问答</button>
+                <button id="ai-mode-edit" class="ai-seg-btn" type="button" aria-pressed="false" title="编辑：让 AI 直接修改文件（SEARCH/REPLACE）">编辑</button>
+              </div>
+              <button id="ai-tools" class="ai-tools-btn" type="button" aria-pressed="false" title="允许 AI 调用工具（读写文件、运行命令、MCP 等），有风险的操作会先征求你的同意"><span aria-hidden="true">🧰</span> 工具</button>
+              <select id="ai-model" class="select ai-model" aria-label="切换模型" title="切换模型"></select>
+              <span id="ai-model-status" class="ai-model-status small muted" role="status" hidden>切换中…(约 10-30 秒)</span>
+            </div>
+            <div class="ai-row">
+              <button id="ai-add-ctx2" class="btn" type="button">添加当前文件到上下文</button>
+              <span class="ai-spacer"></span>
+              <button id="ai-send" class="btn primary" type="button">发送</button>
+              <button id="ai-stop" class="btn danger" type="button" hidden>停止</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ===== Status bar ===== -->
+    <footer class="statusbar" role="contentinfo">
+      <div class="sb-left">
+        <button id="sb-branch" class="sb-item" type="button" aria-label="分支">—</button>
+        <button id="sb-changes" class="sb-item" type="button" aria-label="更改数量">0 更改</button>
+        <span id="sb-term" class="sb-item" hidden></span>
+      </div>
+      <div class="sb-right">
+        <span id="sb-pos" class="sb-item" hidden>Ln 1, Col 1</span>
+        <span id="sb-lang" class="sb-item" hidden></span>
+        <span id="sb-eol" class="sb-item" hidden></span>
+        <span id="sb-mem" class="sb-item" hidden title="JS 堆内存"></span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Quick open -->
+  <div id="quickopen" class="overlay" hidden>
+    <div class="qo-box" role="dialog" aria-modal="true" aria-label="快速打开">
+      <input id="qo-input" class="input" type="text" placeholder="按名称搜索文件…" aria-label="快速打开文件" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="qo-list">
+      <ul id="qo-list" class="qo-list" role="listbox" aria-label="匹配文件"></ul>
+    </div>
+  </div>
+
+  <!-- Context menu / modal / toast containers -->
+  <div id="ctxmenu" class="ctxmenu" role="menu" hidden></div>
+  <div id="modal" class="overlay" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 id="modal-title" class="modal-title"></h3>
+      <p id="modal-msg" class="modal-msg"></p>
+      <input id="modal-input" class="input" type="text" hidden autocomplete="off" spellcheck="false" aria-label="输入">
+      <div id="modal-btns" class="modal-btns"></div>
+    </div>
+  </div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="/static/vendor/codemirror.min.js"></script>
+  <script src="/static/vendor/xterm.js"></script>
+  <script src="/static/vendor/addon-fit.js"></script>
+  <script src="/static/vendor/addon-web-links.js"></script>
+  <script src="/static/ide.js"></script>
+  <script src="/static/ide-ai.js"></script>
+</body>
+</html>
